@@ -166,46 +166,88 @@ pip install timm pillow
 pip install -r requirements-torch.txt
 ```
 
-### Quick usage
+### Train it yourself
 
 Uses `data/leaf_split/{train,val,test}/<class_name>/` produced by
-`data/prepare_data.py` - that layout is directly compatible with
-`torchvision.datasets.ImageFolder`.
+`data/prepare_data.py` (run that first if you haven't).
+
+```bash
+python src/torch_pipeline/train.py
+```
+
+Two-stage transfer learning, same idea as `src/train.py`: trains the head
+with the backbone frozen (5 epochs), then unfreezes and fine-tunes
+end-to-end at a low LR (3 epochs). Default backbone is `efficientnet_b0`
+(CPU-friendly - about 5-8 min/epoch on a regular laptop CPU, ~55 min total).
+Afterwards it calibrates confidence with temperature scaling on the
+validation set and evaluates on the test set. Produces:
+`models/leaf_disease_model_torch.pt`, `models/metrics_torch.json`,
+`models/confusion_matrix_torch.png`, `models/training_history_torch.png`
+(all gitignored - reproducible by rerunning the script).
+
+Useful flags: `--backbone convnext_tiny`, `--epochs-head`, `--epochs-finetune`,
+`--batch-size`, `--img-size`.
+
+### Predict with rejection
+
+```bash
+python src/torch_pipeline/predict.py path/to/leaf.jpg
+```
+
+Loads the checkpoint above and runs `infer_with_rejection()`: prints the
+calibrated prediction, or `Uncertain / Unknown (OOD)` /
+`Ambiguous prediction (Needs recapture)` if the confidence/margin checks fail.
+
+### Results
+
+Trained with the defaults above (`efficientnet_b0`, 8 epochs total) on the
+same 6-class tomato dataset as the Keras model:
+
+| | Keras (MobileNetV2) | PyTorch (EfficientNet-B0, calibrated) |
+|---|---|---|
+| Test accuracy | 82.9% | **86.2%** |
+| Healthy - precision | 0.80 | **0.85** |
+| Healthy - recall | 1.00 | 1.00 |
+| Healthy - F1 | 0.89 | **0.92** |
+| Confidence calibration | none (raw softmax) | temperature scaling (ECE 0.32 -> 0.05) |
+| OOD rejection | none - always returns a class | rejects low-confidence/ambiguous inputs |
+
+![Confusion Matrix - PyTorch pipeline](models/confusion_matrix_torch.png)
+
+Full numbers in `models/metrics_torch.json`.
+
+> **Implementation note:** the first calibration run actually made ECE
+> *worse* (0.32 -> 0.41) instead of better. Cause: `torch.optim.LBFGS`
+> without a line search doesn't guarantee the loss decreases every step, so
+> it can walk past the minimum - a subtle bug in the "standard" temperature
+> scaling snippet that circulates online. Fixed in `calibration.py` by
+> adding `line_search_fn="strong_wolfe"` (enforces real descent) plus a
+> fallback to T=1 if it ever still regresses.
+
+### Use it as a library
 
 ```python
 import sys; sys.path.insert(0, "src")
 import torch
-from torch.utils.data import DataLoader
-from torchvision.datasets import ImageFolder
-from torch_pipeline import (
-    get_train_transforms, get_val_transforms,
-    MultiClassFocalLoss, LeafDiseaseClassifier,
-    ModelWithTemperature, infer_with_rejection,
-)
-
-train_ds = ImageFolder("data/leaf_split/train", transform=get_train_transforms())
-val_ds = ImageFolder("data/leaf_split/val", transform=get_val_transforms())
-class_names = train_ds.classes  # folder names, alphabetically sorted
-train_loader = DataLoader(train_ds, batch_size=32, shuffle=True)
-val_loader = DataLoader(val_ds, batch_size=32)
-
-model = LeafDiseaseClassifier(num_classes=len(class_names), backbone="convnext_tiny")
-criterion = MultiClassFocalLoss(alpha=torch.ones(len(class_names)), gamma=2.0)
-optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
-
-# ... your training loop: forward -> criterion(logits, labels) -> backward -> step ...
-
-# After training: calibrate confidence on the validation set
-calibrated_model = ModelWithTemperature(model)
-calibrated_model.set_temperature(val_loader)
-
-# Inference with OOD / ambiguity rejection
 from PIL import Image
+from torch_pipeline import LeafDiseaseClassifier, ModelWithTemperature, infer_with_rejection
+
+ckpt = torch.load("models/leaf_disease_model_torch.pt", weights_only=False)
+model = LeafDiseaseClassifier(
+    num_classes=len(ckpt["class_names"]), backbone=ckpt["backbone"], pretrained=False,
+)
+model.load_state_dict(ckpt["model_state_dict"])
+model.eval()
+
+calibrated_model = ModelWithTemperature(model)
+calibrated_model.temperature.data.fill_(ckpt["temperature"])
+
 result = infer_with_rejection(
     image=Image.open("some_leaf.jpg"),
     model=model,
     temperature_scaler=calibrated_model,
-    class_names=class_names,
+    class_names=ckpt["class_names"],
+    img_size=ckpt["img_size"],
 )
 print(result)
 # {'status': 'OK' | 'Uncertain / Unknown (OOD)' | 'Ambiguous prediction (Needs recapture)',

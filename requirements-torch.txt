@@ -4,3 +4,7 @@ torch>=2.2
 torchvision>=0.17
 timm>=0.9
 pillow>=10.0
+
+# Used by torch_pipeline/train.py for plots, metrics, and the confusion matrix
+matplotlib>=3.7
+scikit-learn>=1.3

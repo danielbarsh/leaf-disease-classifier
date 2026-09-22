@@ -60,7 +60,14 @@ class ModelWithTemperature(nn.Module):
         before_nll = nll_criterion(logits, labels).item()
         before_ece = ece_criterion(logits, labels).item()
 
-        optimizer = torch.optim.LBFGS([self.temperature], lr=lr, max_iter=max_iter)
+        # NLL is convex in 1/T, but PyTorch's LBFGS with its default step
+        # (no line search) does not guarantee the loss decreases every step -
+        # it can walk past the minimum and settle somewhere worse than the
+        # start. strong_wolfe line search enforces sufficient-decrease at
+        # each step, which is what makes this converge reliably here.
+        optimizer = torch.optim.LBFGS(
+            [self.temperature], lr=lr, max_iter=max_iter, line_search_fn="strong_wolfe"
+        )
 
         def closure():
             optimizer.zero_grad()
@@ -72,6 +79,14 @@ class ModelWithTemperature(nn.Module):
 
         after_nll = nll_criterion(self.temperature_scale(logits), labels).item()
         after_ece = ece_criterion(self.temperature_scale(logits), labels).item()
+
+        # Safety net: NLL should never get worse than the uncalibrated (T=1)
+        # baseline. If it did anyway (e.g. a pathological validation set),
+        # fall back to T=1 rather than actively hurting calibration.
+        if after_nll > before_nll:
+            self.temperature.data.fill_(1.0)
+            after_nll, after_ece = before_nll, before_ece
+            print("Warning: optimized temperature did not improve NLL; falling back to T=1.")
 
         print(f"Optimal temperature: {self.temperature.item():.4f}")
         print(f"NLL:  {before_nll:.4f} -> {after_nll:.4f}")
