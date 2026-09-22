@@ -1,0 +1,20 @@
+# דאטה - לא מעלים לגיט (גדול מדי, וניתן לשחזור עם prepare_data.py)
+data/leaf_split/
+data/_plantvillage_repo/
+data/raw/
+
+# מודל מאומן - אופציונלי: אפשר להסיר את השורה הזו אם רוצים להעלות
+# אותו לגיט כדי שהדמו יעבוד מיד אחרי clone (המודל שוקל ~9MB, לא גדול)
+# models/*.keras
+
+# קבצי פייתון סטנדרטיים
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+
+# מערכת הפעלה / עורך
+.DS_Store
+.vscode/
+.idea/
