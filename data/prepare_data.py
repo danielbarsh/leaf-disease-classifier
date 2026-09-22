@@ -13,9 +13,11 @@ prepare_data.py
     python data/prepare_data.py
 """
 
+import os
 import pathlib
 import random
 import shutil
+import stat
 import subprocess
 import sys
 
@@ -55,6 +57,10 @@ SEED = 42
 
 
 def run(cmd, cwd=None):
+    if cwd is not None and cmd[0] == "git":
+        # עוקף את בדיקת ה"dubious ownership" של git עבור הריפו הזמני הזה בלבד,
+        # בלי לגעת בהגדרות ה-git הגלובליות של המשתמש (רלוונטי בעיקר ב-Windows).
+        cmd = [cmd[0], "-c", f"safe.directory={cwd}", *cmd[1:]]
     print(f"$ {' '.join(cmd)}")
     subprocess.run(cmd, cwd=cwd, check=True)
 
@@ -118,10 +124,17 @@ def split_dataset():
     print(f"\nסה\"כ {total_images} תמונות חולקו ל-{SPLIT_DIR}")
 
 
+def _force_remove_readonly(func, path, exc_info):
+    # קבצי git (כמו pack files) נוצרים לפעמים כ-read-only ב-Windows,
+    # מה שגורם ל-shutil.rmtree להיכשל עם PermissionError.
+    os.chmod(path, stat.S_IWRITE)
+    func(path)
+
+
 def cleanup():
     """מוחק את שכפול ה-git הגולמי אחרי החילוץ, כדי לחסוך מקום בדיסק."""
     if CLONE_DIR.exists():
-        shutil.rmtree(CLONE_DIR)
+        shutil.rmtree(CLONE_DIR, onerror=_force_remove_readonly)
         print("נוקה תיקיית ה-git הזמנית.")
 
 
