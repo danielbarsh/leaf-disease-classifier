@@ -1,0 +1,6 @@
+# Optional dependencies for src/torch_pipeline (kept separate from the
+# TensorFlow-based requirements.txt used by the rest of the project).
+torch>=2.2
+torchvision>=0.17
+timm>=0.9
+pillow>=10.0

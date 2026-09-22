@@ -13,6 +13,18 @@ __pycache__/
 .venv/
 venv/
 *.egg-info/
+.pytest_cache/
+.ipynb_checkpoints/
+
+# PyTorch pipeline outputs (src/torch_pipeline) - reproducible via training,
+# not committed. The Keras model/*.keras stays tracked (see above) for deployment.
+models/*.pt
+models/*.pth
+models/*_torch.*
+checkpoints/
+runs/
+wandb/
+*.log
 
 # OS / editor
 .DS_Store

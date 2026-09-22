@@ -71,13 +71,16 @@ leaf-disease-classifier/
 │   ├── model_utils.py      # Shared constants (paths, image sizes, etc.)
 │   ├── train.py             # Model training (Transfer Learning + Fine-tuning)
 │   ├── evaluate.py          # Evaluation on the test set + confusion matrix
-│   └── predict.py           # Prediction on a single image from the CLI
+│   ├── predict.py           # Prediction on a single image from the CLI
+│   └── torch_pipeline/      # Optional PyTorch add-on (see below) - not wired
+│                            # into train.py/evaluate.py, used independently
 ├── app/
 │   └── streamlit_app.py     # The live demo app
 ├── models/                  # Trained model + plots + metrics (created after training)
 ├── tests/
 │   └── test_model.py        # Basic sanity tests
-├── requirements.txt
+├── requirements.txt         # TensorFlow/Keras stack (used by everything above)
+├── requirements-torch.txt   # PyTorch stack (only for src/torch_pipeline)
 └── README.md
 ```
 
@@ -133,6 +136,80 @@ and see the prediction in real time.
 
 ```bash
 python tests/test_model.py
+```
+
+## Robust PyTorch pipeline (add-on)
+
+`src/torch_pipeline/` is a separate, standalone PyTorch module aimed at
+failure modes the Keras model above doesn't handle: background bias,
+overconfidence on out-of-distribution (non-leaf) images, and unreliable
+predictions when two diseases look alike. It's a **library of building
+blocks**, not a scripted `train.py` - there's no `torch_train.py` yet, you
+wire the pieces into your own training loop (see the example below).
+
+| File | Provides |
+|---|---|
+| `augmentation.py` | `get_train_transforms()` / `get_val_transforms()` - field-realistic augmentation (random crop, color jitter for lighting/shadows, blur, affine rotation, cutout) |
+| `losses.py` | `MultiClassFocalLoss(alpha, gamma)` - focal loss with per-class weights, for imbalanced classes like `Healthy` |
+| `model.py` | `LeafDiseaseClassifier(num_classes, backbone=...)` - pretrained `timm`/`torchvision` backbone + Dropout+Linear head, with `freeze_backbone()`/`unfreeze_backbone()` for staged fine-tuning |
+| `calibration.py` | `ModelWithTemperature` - post-training temperature scaling to fix overconfident softmax outputs |
+| `inference.py` | `infer_with_rejection(...)` - calibrated inference that rejects low-confidence or ambiguous predictions instead of guessing |
+
+### Install
+
+```bash
+# CPU-only (recommended unless you have an NVIDIA GPU with CUDA):
+pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+pip install timm pillow
+
+# or, if you do want the GPU/CUDA build:
+pip install -r requirements-torch.txt
+```
+
+### Quick usage
+
+Uses `data/leaf_split/{train,val,test}/<class_name>/` produced by
+`data/prepare_data.py` - that layout is directly compatible with
+`torchvision.datasets.ImageFolder`.
+
+```python
+import sys; sys.path.insert(0, "src")
+import torch
+from torch.utils.data import DataLoader
+from torchvision.datasets import ImageFolder
+from torch_pipeline import (
+    get_train_transforms, get_val_transforms,
+    MultiClassFocalLoss, LeafDiseaseClassifier,
+    ModelWithTemperature, infer_with_rejection,
+)
+
+train_ds = ImageFolder("data/leaf_split/train", transform=get_train_transforms())
+val_ds = ImageFolder("data/leaf_split/val", transform=get_val_transforms())
+class_names = train_ds.classes  # folder names, alphabetically sorted
+train_loader = DataLoader(train_ds, batch_size=32, shuffle=True)
+val_loader = DataLoader(val_ds, batch_size=32)
+
+model = LeafDiseaseClassifier(num_classes=len(class_names), backbone="convnext_tiny")
+criterion = MultiClassFocalLoss(alpha=torch.ones(len(class_names)), gamma=2.0)
+optimizer = torch.optim.AdamW(model.parameters(), lr=3e-4)
+
+# ... your training loop: forward -> criterion(logits, labels) -> backward -> step ...
+
+# After training: calibrate confidence on the validation set
+calibrated_model = ModelWithTemperature(model)
+calibrated_model.set_temperature(val_loader)
+
+# Inference with OOD / ambiguity rejection
+from PIL import Image
+result = infer_with_rejection(
+    image=Image.open("some_leaf.jpg"),
+    model=model,
+    temperature_scaler=calibrated_model,
+    class_names=class_names,
+)
+print(result)
+# {'status': 'OK' | 'Uncertain / Unknown (OOD)' | 'Ambiguous prediction (Needs recapture)',
+#  'predicted_class': ..., 'confidence': ..., 'margin': ..., 'probabilities': {...}}
 ```
 
 ## Deployment - to get a live link to share
