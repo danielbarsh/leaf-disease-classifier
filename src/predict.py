@@ -1,10 +1,10 @@
 """
 predict.py
 ----------
-חיזוי על תמונה בודדת מה-command line. שימושי לבדיקה מהירה בלי לפתוח את
-אפליקציית ה-Streamlit.
+Prediction on a single image from the command line. Useful for quick testing
+without opening the Streamlit app.
 
-הרצה:
+Run:
     python src/predict.py path/to/image.jpg
 """
 
@@ -38,13 +38,13 @@ def predict_image(image_path: str, top_k: int = 3):
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
-        print("שימוש: python src/predict.py path/to/image.jpg")
+        print("Usage: python src/predict.py path/to/image.jpg")
         sys.exit(1)
 
     image_path = sys.argv[1]
     results = predict_image(image_path)
 
-    print(f"\nתחזיות עבור {image_path}:\n")
+    print(f"\nPredictions for {image_path}:\n")
     for class_name, display, prob in results:
         bar = "█" * int(prob * 40)
         print(f"  {display:35s} {prob:6.1%}  {bar}")

@@ -1,14 +1,15 @@
 """
 streamlit_app.py
 -----------------
-אפליקציית דמו חיה: המשתמש מעלה תמונה של עלה עגבנייה, והאפליקציה מציגה
-את התחזית של המודל (בריא / איזו מחלה) עם רמת ביטחון לכל קלאס.
+Live demo app: the user uploads a photo of a tomato leaf, and the app shows
+the model's prediction (healthy / which disease) with a confidence level for
+each class.
 
-הרצה מקומית:
+Run locally:
     streamlit run app/streamlit_app.py
 
-פריסה חינמית לאינטרנט (כדי שיהיה קישור לשתף במקום CV):
-    ראו את ההוראות ב-README.md תחת "פריסה (Deployment)".
+Free deployment to the web (to have a link to share instead of a CV):
+    See the instructions in README.md under "Deployment".
 """
 
 import pathlib
@@ -23,7 +24,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
 import model_utils as mu
 
 st.set_page_config(
-    page_title="מזהה מחלות בעלי עגבנייה",
+    page_title="Tomato Leaf Disease Detector",
     page_icon="🍅",
     layout="centered",
 )
@@ -46,19 +47,19 @@ def predict(model, class_names, image: Image.Image):
 
 
 def main():
-    st.title("🍅 מזהה מחלות בעלי עגבנייה")
+    st.title("🍅 Tomato Leaf Disease Detector")
     st.markdown(
         """
-        פרויקט **Computer Vision** לדוגמה: מודל שאומן עם *Transfer Learning*
-        על גבי **MobileNetV2**, מזהה 6 מצבים אפשריים בעלה עגבנייה - עלה בריא
-        או אחת מ-5 מחלות נפוצות. מבוסס על דאטהסט
-        [PlantVillage](https://github.com/spMohanty/PlantVillage-Dataset).
+        A sample **Computer Vision** project: a model trained with *Transfer Learning*
+        on top of **MobileNetV2**, detecting 6 possible conditions in a tomato leaf - a
+        healthy leaf or one of 5 common diseases. Based on the
+        [PlantVillage](https://github.com/spMohanty/PlantVillage-Dataset) dataset.
         """
     )
 
     if not mu.MODEL_PATH.exists():
         st.error(
-            "לא נמצא מודל מאומן. הריצו קודם:\n\n"
+            "No trained model found. Run this first:\n\n"
             "```\npython src/train.py\n```"
         )
         st.stop()
@@ -67,18 +68,18 @@ def main():
 
     st.divider()
 
-    tab_upload, tab_camera = st.tabs(["📁 העלאת תמונה", "📷 מצלמה"])
+    tab_upload, tab_camera = st.tabs(["📁 Upload image", "📷 Camera"])
     image = None
 
     with tab_upload:
         uploaded_file = st.file_uploader(
-            "העלו תמונה של עלה עגבנייה (JPG/PNG)", type=["jpg", "jpeg", "png"]
+            "Upload a photo of a tomato leaf (JPG/PNG)", type=["jpg", "jpeg", "png"]
         )
         if uploaded_file is not None:
             image = Image.open(uploaded_file)
 
     with tab_camera:
-        camera_file = st.camera_input("צלמו עלה עגבנייה")
+        camera_file = st.camera_input("Take a photo of a tomato leaf")
         if camera_file is not None:
             image = Image.open(camera_file)
 
@@ -86,41 +87,41 @@ def main():
         col1, col2 = st.columns([1, 1.2])
 
         with col1:
-            st.image(image, caption="התמונה שהועלתה", use_container_width=True)
+            st.image(image, caption="Uploaded image", use_container_width=True)
 
-        with st.spinner("מריץ את המודל..."):
+        with st.spinner("Running the model..."):
             results = predict(model, class_names, image)
 
         with col2:
-            st.subheader("תוצאות החיזוי")
+            st.subheader("Prediction results")
             top_class, top_display, top_prob = results[0]
 
             if top_class == "Tomato___healthy":
-                st.success(f"**{top_display}** ({top_prob:.1%} ביטחון)")
+                st.success(f"**{top_display}** ({top_prob:.1%} confidence)")
             else:
-                st.warning(f"**{top_display}** ({top_prob:.1%} ביטחון)")
+                st.warning(f"**{top_display}** ({top_prob:.1%} confidence)")
 
-            st.caption("כל הקלאסים, לפי סדר ביטחון:")
+            st.caption("All classes, ranked by confidence:")
             for class_name, display, prob in results:
                 st.progress(prob, text=f"{display} - {prob:.1%}")
 
         st.divider()
         st.caption(
-            "⚠️ זהו פרויקט הדגמה לצרכי פורטפוליו. אין להשתמש בו לקבלת "
-            "החלטות אמיתיות בגידול חקלאי בלי אימות של מומחה."
+            "⚠️ This is a demo project for portfolio purposes. Do not use it for "
+            "real agricultural decisions without expert verification."
         )
 
     with st.sidebar:
-        st.header("ℹ️ על הפרויקט")
+        st.header("ℹ️ About the project")
         st.markdown(
             """
-            **סוג המשימה:** סיווג תמונות (Image Classification)
+            **Task type:** Image Classification
 
-            **ארכיטקטורה:** MobileNetV2 + Transfer Learning
+            **Architecture:** MobileNetV2 + Transfer Learning
 
-            **דאטהסט:** PlantVillage (תמונות אמיתיות של עלי עגבנייה)
+            **Dataset:** PlantVillage (real photos of tomato leaves)
 
-            **קלאסים:**
+            **Classes:**
             """
         )
         for c in class_names:
@@ -130,10 +131,10 @@ def main():
             import json
             with open(mu.METRICS_PATH, encoding="utf-8") as f:
                 metrics = json.load(f)
-            st.metric("דיוק על סט הבדיקה", f"{metrics['test_accuracy']:.1%}")
+            st.metric("Accuracy on test set", f"{metrics['test_accuracy']:.1%}")
 
         st.markdown("---")
-        st.markdown("[קוד המקור בפרויקט](.) · נבנה כפרויקט פורטפוליו לחיפוש עבודה")
+        st.markdown("[Project source code](.) · built as a portfolio project for job hunting")
 
 
 if __name__ == "__main__":

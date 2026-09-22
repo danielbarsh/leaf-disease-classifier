@@ -1,15 +1,16 @@
 """
 prepare_data.py
 ----------------
-מוריד תת-קבוצה מתוך דאטהסט PlantVillage (תמונות אמיתיות של עלי עגבנייה,
-בריאים וחולים ב-6 מחלות/מצבים שונים) ומחלק אותה לתיקיות train/val/test.
+Downloads a subset of the PlantVillage dataset (real photos of tomato leaves,
+healthy and affected by 6 different diseases/conditions) and splits it into
+train/val/test folders.
 
-למה ה"הורדה" נעשית עם git ולא עם קישור ישיר?
-מכיוון שהדאטהסט מתארח כקבצים רגילים בתוך ריפו ב-GitHub, אנחנו עושים
-"sparse checkout" חלקי - מורידים רק את תיקיות הקלאסים שבחרנו, ולא
-את כל הריפו (שהוא ענק, כמה ג'יגה עם כל הגרסאות: color/grayscale/segmented).
+Why download with git instead of a direct link?
+Since the dataset is hosted as plain files inside a GitHub repo, we do a
+partial "sparse checkout" - only downloading the class folders we chose, not
+the entire repo (which is huge, several GB with all versions: color/grayscale/segmented).
 
-הרצה:
+Run:
     python data/prepare_data.py
 """
 
@@ -23,7 +24,7 @@ import sys
 
 REPO_URL = "https://github.com/spMohanty/PlantVillage-Dataset.git"
 
-# 6 קלאסים של עלי עגבנייה: בריא + 5 מחלות נפוצות
+# 6 tomato leaf classes: healthy + 5 common diseases
 CLASSES = [
     "Tomato___healthy",
     "Tomato___Late_blight",
@@ -33,22 +34,22 @@ CLASSES = [
     "Tomato___Bacterial_spot",
 ]
 
-# תרגום שמות הקלאסים לתצוגה נעימה יותר באפליקציה
+# Friendlier display names for the classes, used in the app
 CLASS_DISPLAY_NAMES = {
-    "Tomato___healthy": "עלה בריא (Healthy)",
-    "Tomato___Late_blight": "כשות מאוחרת (Late Blight)",
-    "Tomato___Early_blight": "כשות מוקדמת (Early Blight)",
-    "Tomato___Leaf_Mold": "עובש עלים (Leaf Mold)",
-    "Tomato___Septoria_leaf_spot": "כתמי ספטוריה (Septoria Leaf Spot)",
-    "Tomato___Bacterial_spot": "כתמים חיידקיים (Bacterial Spot)",
+    "Tomato___healthy": "Healthy leaf",
+    "Tomato___Late_blight": "Late Blight",
+    "Tomato___Early_blight": "Early Blight",
+    "Tomato___Leaf_Mold": "Leaf Mold",
+    "Tomato___Septoria_leaf_spot": "Septoria Leaf Spot",
+    "Tomato___Bacterial_spot": "Bacterial Spot",
 }
 
 BASE_DIR = pathlib.Path(__file__).resolve().parent
 CLONE_DIR = BASE_DIR / "_plantvillage_repo"
 SPLIT_DIR = BASE_DIR / "leaf_split"
 
-# כמה תמונות לקחת מכל קלאס לכל היותר (כדי שהאימון יהיה מהיר וסביר בזמן/משאבים).
-# אפשר להגדיל את זה כשמריצים על המחשב שלכם (יש אלפי תמונות זמינות לכל קלאס).
+# Max number of images to take per class (keeps training fast and reasonable in time/resources).
+# You can increase this when running on your own machine (there are thousands of images available per class).
 MAX_IMAGES_PER_CLASS = 400
 
 TRAIN_RATIO = 0.8
@@ -58,17 +59,17 @@ SEED = 42
 
 def run(cmd, cwd=None):
     if cwd is not None and cmd[0] == "git":
-        # עוקף את בדיקת ה"dubious ownership" של git עבור הריפו הזמני הזה בלבד,
-        # בלי לגעת בהגדרות ה-git הגלובליות של המשתמש (רלוונטי בעיקר ב-Windows).
+        # Bypasses git's "dubious ownership" check for this temporary repo only,
+        # without touching the user's global git config (mainly relevant on Windows).
         cmd = [cmd[0], "-c", f"safe.directory={cwd}", *cmd[1:]]
     print(f"$ {' '.join(cmd)}")
     subprocess.run(cmd, cwd=cwd, check=True)
 
 
 def download_subset():
-    """מוריד רק את תיקיות הקלאסים הרלוונטיות מהריפו, בלי ההיסטוריה/שאר הקבצים."""
+    """Downloads only the relevant class folders from the repo, without history/other files."""
     if CLONE_DIR.exists():
-        print("הריפו כבר קיים מקומית, מדלג על הורדה חוזרת.")
+        print("Repo already exists locally, skipping re-download.")
         return
 
     run([
@@ -117,36 +118,36 @@ def split_dataset():
 
         total_images += n
         print(
-            f"  {class_name:32s}: {n:4d} תמונות -> "
+            f"  {class_name:32s}: {n:4d} images -> "
             f"train={len(splits['train'])}, val={len(splits['val'])}, test={len(splits['test'])}"
         )
 
-    print(f"\nסה\"כ {total_images} תמונות חולקו ל-{SPLIT_DIR}")
+    print(f"\nTotal {total_images} images split into {SPLIT_DIR}")
 
 
 def _force_remove_readonly(func, path, exc_info):
-    # קבצי git (כמו pack files) נוצרים לפעמים כ-read-only ב-Windows,
-    # מה שגורם ל-shutil.rmtree להיכשל עם PermissionError.
+    # Git files (like pack files) are sometimes created as read-only on Windows,
+    # which causes shutil.rmtree to fail with PermissionError.
     os.chmod(path, stat.S_IWRITE)
     func(path)
 
 
 def cleanup():
-    """מוחק את שכפול ה-git הגולמי אחרי החילוץ, כדי לחסוך מקום בדיסק."""
+    """Deletes the raw git clone after extraction, to save disk space."""
     if CLONE_DIR.exists():
         shutil.rmtree(CLONE_DIR, onerror=_force_remove_readonly)
-        print("נוקה תיקיית ה-git הזמנית.")
+        print("Temporary git folder cleaned up.")
 
 
 if __name__ == "__main__":
-    print("שלב 1/3: מוריד תת-קבוצה של הדאטהסט (עלי עגבנייה, PlantVillage)...")
+    print("Step 1/3: Downloading a subset of the dataset (tomato leaves, PlantVillage)...")
     download_subset()
 
-    print("\nשלב 2/3: מחלק לתיקיות train/val/test...")
+    print("\nStep 2/3: Splitting into train/val/test folders...")
     split_dataset()
 
-    print("\nשלב 3/3: ניקוי קבצים זמניים...")
+    print("\nStep 3/3: Cleaning up temporary files...")
     cleanup()
 
-    print("\nהכנת הדאטה הושלמה בהצלחה!")
-    print(f"הדאטה המחולק נמצא ב: {SPLIT_DIR}")
+    print("\nData preparation completed successfully!")
+    print(f"The split data is located at: {SPLIT_DIR}")

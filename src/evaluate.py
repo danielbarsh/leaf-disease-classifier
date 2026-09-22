@@ -1,15 +1,16 @@
 """
 evaluate.py
 -----------
-מעריך את המודל המאומן על סט הבדיקה (test) - הסט שהמודל מעולם לא ראה,
-לא באימון ולא בבחירת ההיפר-פרמטרים. זה הכי קרוב ל"ביצועים בעולם האמיתי".
+Evaluates the trained model on the test set - the set the model has never
+seen, neither during training nor hyperparameter selection. This is the
+closest we get to "real-world performance".
 
-מייצר:
-- דיוח סיווג (precision/recall/f1 לכל קלאס)
-- מטריצת בלבול (confusion matrix) כתמונה
-- קובץ metrics.json עם המספרים המרכזיים (שימושי גם לאפליקציית הדמו ול-README)
+Produces:
+- Classification report (precision/recall/f1 per class)
+- Confusion matrix as an image
+- metrics.json file with the key numbers (also useful for the demo app and README)
 
-הרצה:
+Run:
     python src/evaluate.py
 """
 
@@ -29,7 +30,7 @@ import model_utils as mu
 
 
 def main():
-    print(f"טוען מודל מ-{mu.MODEL_PATH}...")
+    print(f"Loading model from {mu.MODEL_PATH}...")
     model = tf.keras.models.load_model(mu.MODEL_PATH)
     class_names = mu.load_class_names()
 
@@ -40,22 +41,23 @@ def main():
         shuffle=False,
     )
 
-    print("מריץ חיזויים על סט הבדיקה...")
+    print("Running predictions on the test set...")
     y_true = np.concatenate([y.numpy() for _, y in test_ds])
     y_pred_probs = model.predict(test_ds, verbose=0)
     y_pred = np.argmax(y_pred_probs, axis=1)
 
     accuracy = float(np.mean(y_true == y_pred))
-    print(f"\nדיוק (accuracy) על סט הבדיקה: {accuracy:.2%}")
+    print(f"\nAccuracy on test set: {accuracy:.2%}")
 
     report = classification_report(
         y_true, y_pred, target_names=class_names, output_dict=True, zero_division=0
     )
     print("\n" + classification_report(y_true, y_pred, target_names=class_names, zero_division=0))
 
-    # --- מטריצת בלבול ---
-    # הערה: תוויות הגרף באנגלית בכוונה - matplotlib לא תומך כראוי ב-RTL
-    # (עברית תוצג הפוכה/משובשת), ואנגלית גם נפוצה יותר בפורטפוליו טכני.
+    # --- Confusion matrix ---
+    # Note: axis labels are in English on purpose - matplotlib doesn't properly
+    # support RTL (Hebrew would render reversed/garbled), and English is also
+    # more common in a technical portfolio.
     cm = confusion_matrix(y_true, y_pred)
     fig, ax = plt.subplots(figsize=(7, 6))
     im = ax.imshow(cm, cmap="Blues")
@@ -76,9 +78,9 @@ def main():
     fig.colorbar(im, ax=ax)
     fig.tight_layout()
     fig.savefig(mu.CONFUSION_MATRIX_PATH, dpi=120)
-    print(f"\nמטריצת הבלבול נשמרה ב-{mu.CONFUSION_MATRIX_PATH}")
+    print(f"\nConfusion matrix saved to {mu.CONFUSION_MATRIX_PATH}")
 
-    # --- שמירת מטריקות לקובץ JSON ---
+    # --- Save metrics to JSON file ---
     metrics = {
         "test_accuracy": accuracy,
         "per_class": {
@@ -95,7 +97,7 @@ def main():
     }
     with open(mu.METRICS_PATH, "w", encoding="utf-8") as f:
         json.dump(metrics, f, ensure_ascii=False, indent=2)
-    print(f"המטריקות נשמרו ב-{mu.METRICS_PATH}")
+    print(f"Metrics saved to {mu.METRICS_PATH}")
 
 
 if __name__ == "__main__":

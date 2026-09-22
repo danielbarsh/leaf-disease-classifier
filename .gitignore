@@ -1,20 +1,20 @@
-# דאטה - לא מעלים לגיט (גדול מדי, וניתן לשחזור עם prepare_data.py)
+# Data - not committed to git (too large, and reproducible with prepare_data.py)
 data/leaf_split/
 data/_plantvillage_repo/
 data/raw/
 
-# מודל מאומן - אופציונלי: אפשר להסיר את השורה הזו אם רוצים להעלות
-# אותו לגיט כדי שהדמו יעבוד מיד אחרי clone (המודל שוקל ~9MB, לא גדול)
+# Trained model - optional: you can remove this line if you want to commit
+# it to git so the demo works right after clone (the model weighs ~9MB, not large)
 # models/*.keras
 
-# קבצי פייתון סטנדרטיים
+# Standard Python files
 __pycache__/
 *.pyc
 .venv/
 venv/
 *.egg-info/
 
-# מערכת הפעלה / עורך
+# OS / editor
 .DS_Store
 .vscode/
 .idea/

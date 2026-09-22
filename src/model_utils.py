@@ -1,14 +1,15 @@
 """
 model_utils.py
 ----------------
-קבועים ופונקציות עזר משותפות לכל הסקריפטים (אימון, הערכה, חיזוי, אפליקציית הדמו).
-לשמור את כל ה"מקורות אמת" האלה במקום אחד מונע חוסר-התאמות בין הסקריפטים.
+Constants and helper functions shared across all scripts (training, evaluation,
+prediction, demo app). Keeping all these "sources of truth" in one place
+prevents inconsistencies between the scripts.
 """
 
 import json
 import pathlib
 
-# --- נתיבים ---
+# --- Paths ---
 PROJECT_ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATA_DIR = PROJECT_ROOT / "data" / "leaf_split"
 MODELS_DIR = PROJECT_ROOT / "models"
@@ -18,19 +19,19 @@ HISTORY_PLOT_PATH = MODELS_DIR / "training_history.png"
 CONFUSION_MATRIX_PATH = MODELS_DIR / "confusion_matrix.png"
 METRICS_PATH = MODELS_DIR / "metrics.json"
 
-# --- היפר-פרמטרים של המודל ---
-IMG_SIZE = (160, 160)          # גודל התמונה שהמודל מצפה לו (MobileNetV2)
+# --- Model hyperparameters ---
+IMG_SIZE = (160, 160)          # image size the model expects (MobileNetV2)
 BATCH_SIZE = 32
 SEED = 42
 
-# שמות הקלאסים לתצוגה ידידותית (בעברית) באפליקציה
+# Friendly display names for the classes, shown in the app
 CLASS_DISPLAY_NAMES = {
-    "Tomato___healthy": "עלה בריא (Healthy)",
-    "Tomato___Late_blight": "כשות מאוחרת (Late Blight)",
-    "Tomato___Early_blight": "כשות מוקדמת (Early Blight)",
-    "Tomato___Leaf_Mold": "עובש עלים (Leaf Mold)",
-    "Tomato___Septoria_leaf_spot": "כתמי ספטוריה (Septoria Leaf Spot)",
-    "Tomato___Bacterial_spot": "כתמים חיידקיים (Bacterial Spot)",
+    "Tomato___healthy": "Healthy leaf",
+    "Tomato___Late_blight": "Late Blight",
+    "Tomato___Early_blight": "Early Blight",
+    "Tomato___Leaf_Mold": "Leaf Mold",
+    "Tomato___Septoria_leaf_spot": "Septoria Leaf Spot",
+    "Tomato___Bacterial_spot": "Bacterial Spot",
 }
 
 
